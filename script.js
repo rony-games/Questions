@@ -8,15 +8,28 @@ const sounds = {
     modal: new Audio('modal_sound.mp3'),
     point: new Audio('Point_award.mp3'),
     win: new Audio('game_win.mp3'),
-    countdown: new Audio('countdown.mp3'),
-    supporter: new Audio('supporter_added.mp3') // **NEW**
+    countdown: new Audio('Countdown.mp3'),
+    supporter: new Audio('supporter_added.mp3'),
+    sparkle: new Audio('sparkle.mp3')
 };
 sounds.countdown.loop = true; 
+sounds.modal.volume = 0.5;
+
+// **RELIABLE FIX**: This function will now be called by each button itself, ensuring sounds are ready.
+let isAudioUnlocked = false;
+function unlockAudio() {
+    if (isAudioUnlocked) return;
+    // A tiny, silent sound played on the first click to wake up the audio engine.
+    const silentSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
+    silentSound.play().catch(() => {});
+    isAudioUnlocked = true;
+}
 
 function playSound(sound) {
+    unlockAudio(); // Ensure audio is unlocked before playing.
     if (sounds[sound]) {
         sounds[sound].currentTime = 0;
-        sounds[sound].play().catch(e => console.error(`Could not play sound: ${sound}`, e));
+        sounds[sound].play().catch(e => {});
     }
 }
 
@@ -64,7 +77,6 @@ const elements = {
     allModals: document.querySelectorAll('.modal-overlay'),
     allCloseButtons: document.querySelectorAll('.modal-close-btn'),
 
-    // **NEW** Supporter Announcement Elements
     supporterAnnouncement: document.getElementById('supporter-announcement'),
     announcementPhoto: document.getElementById('announcement-photo'),
     announcementText: document.getElementById('announcement-text')
@@ -82,6 +94,7 @@ let state = {
     boysRoundsWon: 0,
     gameActive: true,
     usedQuestionIds: [],
+    lastQuestionCategory: null
 };
 
 // --- STATE MANAGEMENT ---
@@ -96,7 +109,11 @@ function saveState() {
 function loadState() {
     const savedState = localStorage.getItem('ronyGamesSession');
     if (savedState) {
-        Object.assign(state, JSON.parse(savedState));
+        const loadedState = JSON.parse(savedState);
+        if (!loadedState.lastQuestionCategory) {
+            loadedState.lastQuestionCategory = null;
+        }
+        Object.assign(state, loadedState);
     }
 }
 
@@ -220,7 +237,6 @@ function addSupporterToDOM(name, photoDataUrl, team) {
     list.appendChild(supporterCard);
 }
 
-// --- **NEW** Supporter Announcement Logic ---
 function showSupporterAnnouncement(name, photoUrl, team) {
     const teamName = team === 'girls' ? 'البنات' : 'الشباب';
     elements.announcementPhoto.src = photoUrl;
@@ -233,7 +249,7 @@ function showSupporterAnnouncement(name, photoUrl, team) {
     setTimeout(() => {
         elements.supporterAnnouncement.classList.remove('show');
         elements.supporterAnnouncement.classList.add('hidden');
-    }, 6000); // Announcement lasts for 6 seconds
+    }, 6000);
 }
 
 // --- EVENT LISTENERS ATTACHMENT ---
@@ -246,10 +262,25 @@ function attachEventListeners() {
             return;
         }
         
-        const randomIndex = Math.floor(Math.random() * availableQuestions.length);
-        const currentQuestion = availableQuestions[randomIndex];
+        let questionPool = availableQuestions;
         
-        availableQuestions.splice(randomIndex, 1);
+        if (state.lastQuestionCategory) {
+            const filteredPool = availableQuestions.filter(q => q.category !== state.lastQuestionCategory);
+            if (filteredPool.length > 0) {
+                questionPool = filteredPool;
+            }
+        }
+        
+        const randomIndex = Math.floor(Math.random() * questionPool.length);
+        const currentQuestion = questionPool[randomIndex];
+        
+        state.lastQuestionCategory = currentQuestion.category;
+        
+        const originalIndex = availableQuestions.findIndex(q => q.id === currentQuestion.id);
+        if (originalIndex !== -1) {
+            availableQuestions.splice(originalIndex, 1);
+        }
+        
         state.usedQuestionIds.push(currentQuestion.id);
         saveState();
         
@@ -283,7 +314,7 @@ function attachEventListeners() {
             saveState();
             updateScoresUI();
             checkWinner();
-            hideModal(elements.questionModal);
+            elements.questionModal.classList.add('hidden'); 
         });
     });
     
@@ -313,6 +344,11 @@ function attachEventListeners() {
             playSound('click');
             const team = e.target.dataset.team;
             const isAdd = e.target.classList.contains('add-round-btn');
+
+            if (isAdd) {
+                playSound('sparkle');
+            }
+
             if(team === 'girls') {
                 if (isAdd) state.girlsRoundsWon++;
                 else if (state.girlsRoundsWon > 0) state.girlsRoundsWon--;
@@ -339,8 +375,6 @@ function attachEventListeners() {
                 addSupporterToDOM(supporterName, photoDataUrl, selectedTeam);
                 hideModal(elements.supporterModal);
                 elements.supporterForm.reset();
-
-                // **UPDATED**: Trigger the announcement
                 showSupporterAnnouncement(supporterName, photoDataUrl, selectedTeam);
             };
             reader.readAsDataURL(supporterPhotoInput.files[0]);
@@ -359,6 +393,7 @@ function attachEventListeners() {
     });
     
     elements.allCloseButtons.forEach(btn => btn.addEventListener('click', () => {
+        unlockAudio(); // Ensure audio is unlocked on close click
         if(btn.closest('.modal-overlay')?.id === 'celebration-overlay') {
             clearInterval(countdownInterval);
             stopSound('countdown');
@@ -368,6 +403,7 @@ function attachEventListeners() {
     
     elements.allModals.forEach(modal => {
         modal.addEventListener('click', (e) => {
+            unlockAudio(); // Ensure audio is unlocked on background click
             if (e.target === modal) {
                  if(modal.id === 'celebration-overlay') {
                     clearInterval(countdownInterval);
@@ -407,7 +443,8 @@ async function initializeGame() {
         
         allQuestions = lines.map(line => {
             const values = line.split(',');
-            return { id: values[0], type: values[1], question_text: values[2], image_url: values[3], answer: values[4], category: values[5] };
+            const category = values[5] ? values[5].trim() : 'عام'; 
+            return { id: values[0], type: values[1], question_text: values[2], image_url: values[3], answer: values[4], category: category };
         }).filter(q => q && q.id);
         
         availableQuestions = allQuestions.filter(q => !state.usedQuestionIds.includes(q.id));
