@@ -8,7 +8,7 @@ const sounds = {
     modal: new Audio('modal_sound.mp3'),
     point: new Audio('point_award.mp3'),
     win: new Audio('game_win.mp3'),
-    countdown: new Audio('Countdown.mp3'),
+    countdown: new Audio('countdown.mp3'),
     supporter: new Audio('supporter_added.mp3'),
     sparkle: new Audio('sparkle.mp3')
 };
