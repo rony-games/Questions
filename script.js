@@ -1,5 +1,6 @@
 // --- CONFIGURATION ---
-const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQEfxl2DDK4ZY-pFgNMnNlzuXJKf9ysLh1u30CW0aukQVNJ3oEPXTMZ8S8g685fxGYmVv5lmve4ZLrN/pub?output=csv';
+// ! الرابط الجديد للعبة - تأكد من وضع مفتاح API الجديد والصحيح هنا
+const GOOGLE_SHEET_URL = 'https://sheets.googleapis.com/v4/spreadsheets/1GYDE5x9uumXhWZ2QCTQKdtYtb72izVy0cwPsIQr08ic/values/1?key=ضع-مفتاح-API-الجديد-الخاص-بك-هنا';
 const WINNING_SCORE = 10;
 
 // --- AUDIO SETUP ---
@@ -250,7 +251,6 @@ function showSupporterAnnouncement(name, photoUrl, team) {
     }, 6000);
 }
 
-// **NEW** Function to show a zoomed-in image
 function showZoomedImage(src) {
     const overlay = document.createElement('div');
     overlay.className = 'image-zoom-overlay';
@@ -307,10 +307,9 @@ function attachEventListeners() {
         if (currentQuestion.type === 'image' && currentQuestion.image_url) {
             const imgElement = document.createElement('img');
             imgElement.src = currentQuestion.image_url;
-            imgElement.style.cursor = 'zoom-in'; // Add a visual cue
-            // **NEW** Add click listener for zoom
+            imgElement.style.cursor = 'zoom-in';
             imgElement.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent modal from closing
+                e.stopPropagation();
                 showZoomedImage(imgElement.src);
             });
             elements.modalQuestionArea.appendChild(imgElement);
@@ -449,6 +448,7 @@ function attachEventListeners() {
 }
 
 // --- INITIALIZATION ---
+// ! هذه هي النسخة الجديدة والمعدلة من الدالة
 async function initializeGame() {
     loadState();
     updateAllUI();
@@ -457,14 +457,13 @@ async function initializeGame() {
     try {
         const response = await fetch(GOOGLE_SHEET_URL);
         if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
-        const csvData = await response.text();
         
-        const lines = csvData.trim().split(/\r\n|\n/).slice(1);
+        const jsonData = await response.json();
+        const rows = jsonData.values || [];
         
-        allQuestions = lines.map(line => {
-            const values = line.split(',');
-            const category = values[5] ? values[5].trim() : 'عام'; 
-            return { id: values[0], type: values[1], question_text: values[2], image_url: values[3], answer: values[4], category: category };
+        allQuestions = rows.slice(1).map(row => {
+            const category = row[5] ? row[5].trim() : 'عام'; 
+            return { id: row[0], type: row[1], question_text: row[2], image_url: row[3], answer: row[4], category: category };
         }).filter(q => q && q.id);
         
         availableQuestions = allQuestions.filter(q => !state.usedQuestionIds.includes(q.id));
