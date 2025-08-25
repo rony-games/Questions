@@ -1,5 +1,6 @@
 // --- CONFIGURATION ---
-const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQEfxl2DDK4ZY-pFgNMnNlzuXJKf9ysLh1u30CW0aukQVNJ3oEPXTMZ8S8g685fxGYmVv5lmve4ZLrN/pub?output=csv';
+// **IMPORTANT**: Replace this URL with your .tsv link from Google Sheets
+const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQEfxl2DDK4ZY-pFgNMnNlzuXJKf9ysLh1u30CW0aukQVNJ3oEPXTMZ8S8g685fxGYmVv5lmve4ZLrN/pub?output=tsv'; 
 const WINNING_SCORE = 10;
 
 // --- AUDIO SETUP ---
@@ -250,7 +251,6 @@ function showSupporterAnnouncement(name, photoUrl, team) {
     }, 6000);
 }
 
-// **NEW** Function to show a zoomed-in image
 function showZoomedImage(src) {
     const overlay = document.createElement('div');
     overlay.className = 'image-zoom-overlay';
@@ -307,10 +307,9 @@ function attachEventListeners() {
         if (currentQuestion.type === 'image' && currentQuestion.image_url) {
             const imgElement = document.createElement('img');
             imgElement.src = currentQuestion.image_url;
-            imgElement.style.cursor = 'zoom-in'; // Add a visual cue
-            // **NEW** Add click listener for zoom
+            imgElement.style.cursor = 'zoom-in';
             imgElement.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent modal from closing
+                e.stopPropagation();
                 showZoomedImage(imgElement.src);
             });
             elements.modalQuestionArea.appendChild(imgElement);
@@ -457,22 +456,40 @@ async function initializeGame() {
     try {
         const response = await fetch(GOOGLE_SHEET_URL);
         if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
-        const csvData = await response.text();
+        const tsvData = await response.text();
         
-        const lines = csvData.trim().split(/\r\n|\n/).slice(1);
+        const lines = tsvData.trim().split(/\r\n|\n/);
+        const headers = lines[0].split('\t').map(h => h.trim());
+        const expectedHeaders = ['id', 'type', 'question_text', 'image_url', 'answer', 'category'];
+
+        if (headers.length < expectedHeaders.length || !expectedHeaders.every((h, i) => headers[i] === h)) {
+             document.body.innerHTML = `<h1>خطأ في تنسيق جدول البيانات</h1><p>تأكد من أن الأعمدة هي بالترتيب التالي: ${expectedHeaders.join(', ')}</p>`;
+             return;
+        }
         
-        allQuestions = lines.map(line => {
-            const values = line.split(',');
+        allQuestions = lines.slice(1).map(line => {
+            const values = line.split('\t');
             const category = values[5] ? values[5].trim() : 'عام'; 
-            return { id: values[0], type: values[1], question_text: values[2], image_url: values[3], answer: values[4], category: category };
+            return { 
+                id: values[0], 
+                type: values[1], 
+                question_text: values[2], 
+                image_url: values[3], 
+                answer: values[4], 
+                category: category 
+            };
         }).filter(q => q && q.id);
         
         availableQuestions = allQuestions.filter(q => !state.usedQuestionIds.includes(q.id));
         console.log(`تم تحميل ${allQuestions.length} سؤالاً، ومتاح منها ${availableQuestions.length} سؤالاً.`);
+
+        if (allQuestions.length === 0 && lines.length > 1) {
+             document.body.innerHTML = `<h1>لم يتم تحميل أي أسئلة</h1><p>قد يكون هناك خطأ في تنسيق الأسئلة داخل الجدول. تأكد من عدم وجود أسطر فارغة.</p>`;
+        }
         
     } catch (error) {
         console.error('فشل في تحميل أو تحليل بنك الأسئلة:', error);
-        document.body.innerHTML = `<h1>فشل تحميل بنك الأسئلة</h1><p>تأكد من صحة الرابط وأن جدول البيانات منشور على الويب.</p><p>تفاصيل الخطأ: ${error.message}</p>`;
+        document.body.innerHTML = `<h1>فشل تحميل بنك الأسئلة</h1><p>تأكد من صحة الرابط وأن جدول البيانات منشور على الويب بصيغة .tsv</p><p>تفاصيل الخطأ: ${error.message}</p>`;
     }
 }
 
