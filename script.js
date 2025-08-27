@@ -1,5 +1,4 @@
 // --- CONFIGURATION ---
-// ! الرابط الجديد للعبة - تأكد من وضع مفتاح API الجديد والصحيح هنا
 const GOOGLE_SHEET_URL = 'https://sheets.googleapis.com/v4/spreadsheets/1GYDE5x9uumXhWZ2QCTQKdtYtb72izVy0cwPsIQr08ic/values/1!A:F?key=AIzaSyAc1zPbwDhMh3gc_qdPmNwbgd8ubcrG55o';
 const WINNING_SCORE = 10;
 
@@ -93,7 +92,8 @@ let state = {
     boysRoundsWon: 0,
     gameActive: true,
     usedQuestionIds: [],
-    lastQuestionCategory: null
+    lastQuestionCategory: null,
+    categoryQueue: [] // ! (تعديل 1) تمت إضافة هذا السطر لإدارة الفئات
 };
 
 // --- STATE MANAGEMENT ---
@@ -111,6 +111,10 @@ function loadState() {
         const loadedState = JSON.parse(savedState);
         if (!loadedState.lastQuestionCategory) {
             loadedState.lastQuestionCategory = null;
+        }
+        // ! إضافة خاصية جديدة للحالة عند التحميل إذا لم تكن موجودة
+        if (!loadedState.categoryQueue) {
+            loadedState.categoryQueue = [];
         }
         Object.assign(state, loadedState);
     }
@@ -146,6 +150,7 @@ function startNewRound() {
     state.girlsScore = 0;
     state.boysScore = 0;
     state.gameActive = true;
+    generateCategoryQueue(); // ! إعادة إنشاء قائمة الفئات عند بدء جولة جديدة
     saveState();
     updateScoresUI();
     hideModal(elements.celebrationOverlay);
@@ -267,8 +272,21 @@ function showZoomedImage(src) {
     document.body.appendChild(overlay);
 }
 
+// ! (تعديل 2) الدالة الجديدة لخلط الفئات
+function generateCategoryQueue() {
+    const availableCategories = [...new Set(availableQuestions.map(q => q.category))];
+    for (let i = availableCategories.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availableCategories[i], availableCategories[j]] = [availableCategories[j], availableCategories[i]];
+    }
+    state.categoryQueue = availableCategories;
+    console.log('New category queue generated:', state.categoryQueue);
+    saveState(); // حفظ الحالة بعد تحديث قائمة الفئات
+}
+
 // --- EVENT LISTENERS ATTACHMENT ---
 function attachEventListeners() {
+    // ! (تعديل 3) تم تحديث منطق اختيار السؤال بالكامل
     elements.nextQuestionBtn.addEventListener('click', () => {
         playSound('click');
         if (!state.gameActive) return;
@@ -276,17 +294,36 @@ function attachEventListeners() {
             alert("انتهت جميع الأسئلة المتاحة لهذا اليوم!");
             return;
         }
-        
-        let questionPool = availableQuestions;
-        if (state.lastQuestionCategory) {
-            const filteredPool = availableQuestions.filter(q => q.category !== state.lastQuestionCategory);
-            if (filteredPool.length > 0) {
-                questionPool = filteredPool;
+    
+        if (!state.categoryQueue || state.categoryQueue.length === 0) {
+            generateCategoryQueue();
+        }
+
+        let currentQuestion = null;
+        let originalQueueLength = state.categoryQueue.length;
+
+        while (currentQuestion === null && state.categoryQueue.length > 0) {
+            let nextCategory = state.categoryQueue.shift();
+            const questionPool = availableQuestions.filter(q => q.category === nextCategory);
+    
+            if (questionPool.length > 0) {
+                const randomIndex = Math.floor(Math.random() * questionPool.length);
+                currentQuestion = questionPool[randomIndex];
             }
         }
-        
-        const randomIndex = Math.floor(Math.random() * questionPool.length);
-        const currentQuestion = questionPool[randomIndex];
+    
+        if (currentQuestion === null) {
+            if (originalQueueLength > 0) {
+                 generateCategoryQueue(); // إعادة التوليد إذا انتهت القائمة ولم نجد أسئلة
+            }
+            if (availableQuestions.length > 0) {
+                const randomIndex = Math.floor(Math.random() * availableQuestions.length);
+                currentQuestion = availableQuestions[randomIndex];
+            } else {
+                alert("تهانينا! لقد تم الإجابة على جميع الأسئلة.");
+                return;
+            }
+        }
         
         state.lastQuestionCategory = currentQuestion.category;
         
@@ -448,7 +485,6 @@ function attachEventListeners() {
 }
 
 // --- INITIALIZATION ---
-// ! هذه هي النسخة الجديدة والمعدلة من الدالة
 async function initializeGame() {
     loadState();
     updateAllUI();
@@ -468,6 +504,11 @@ async function initializeGame() {
         
         availableQuestions = allQuestions.filter(q => !state.usedQuestionIds.includes(q.id));
         console.log(`تم تحميل ${allQuestions.length} سؤالاً، ومتاح منها ${availableQuestions.length} سؤالاً.`);
+        
+        // ! (تعديل 4) استدعاء الدالة لأول مرة عند بدء اللعبة
+        if (state.categoryQueue.length === 0) {
+            generateCategoryQueue();
+        }
         
     } catch (error) {
         console.error('فشل في تحميل أو تحليل بنك الأسئلة:', error);
