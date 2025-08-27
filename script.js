@@ -1,6 +1,6 @@
 // --- CONFIGURATION ---
 // ! الرابط الجديد للعبة - تأكد من وضع مفتاح API الجديد والصحيح هنا
-const GOOGLE_SHEET_URL = 'https://sheets.googleapis.com/v4/spreadsheets/1GYDE5x9uumXhWZ2QCTQKdtYtb72izVy0cwPsIQr08ic/values/1?key=AIzaSyAc1zPbwDhMh3gc_qdPmNwbgd8ubcrG55o';
+const GOOGLE_SHEET_URL = 'https://sheets.googleapis.com/v4/spreadsheets/1GYDE5x9uumXhWZ2QCTQKdtYtb72izVy0cwPsIQr08ic/values/1!A:F?key=AIzaSyAc1zPbwDhMh3gc_qdPmNwbgd8ubcrG55o';
 const WINNING_SCORE = 10;
 
 // --- AUDIO SETUP ---
